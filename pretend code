@@ -1,0 +1,21 @@
+```{r}
+library(shiny)
+library(tidyverse)
+library(lubridate)
+library(data.table)
+library(dplyr)
+```
+
+
+```{r}
+diabetes = read_csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
+#diabetes
+
+#data cleaning, removing all values of zero in these categories
+diabetes_cleaned <- diabetes |>
+  filter(Glucose != 0, BloodPressure != 0, SkinThickness !=0, Insulin !=0, BMI!=0, Age!=0)
+
+cleaned_age <- diabetes_cleaned$Age[!is.na(diabetes_cleaned$Age & diabetes_cleaned$Age != "")]
+
+
+```
