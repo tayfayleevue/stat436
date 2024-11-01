@@ -1,4 +1,3 @@
-```{r}
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -10,7 +9,8 @@ diabetes_data <- read_csv("https://uwmadison.box.com/shared/static/k6ph975j7qifh
 
 # Remove rows where columns other than Pregnancies and Outcome contain 0 values
 diabetes_data <- diabetes_data %>%
-  filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0))
+  filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0)) %>%
+  mutate(Outcome = factor(Outcome, levels = c(0, 1), labels = c("Non-Diabetic", "Diabetic")))
 
 # Fit a logistic regression model for diabetes risk prediction
 model <- glm(Outcome ~ Age + Pregnancies + BMI + Glucose, data = diabetes_data, family = "binomial")
@@ -37,12 +37,16 @@ ui <- fluidPage(
                sidebarPanel(
                  h4("Interactive Visualizations"),
                  selectInput("feature", "Select Feature:", 
-                             choices = c("BMI", "Glucose", "BloodPressure", "Age")),
-                 checkboxInput("show_boxplot", "Show Boxplot", TRUE),
-                 checkboxInput("show_histogram", "Show Histogram with Density", FALSE)
+                             choices = c("BMI", "Glucose", "BloodPressure", "Age"))
                ),
                mainPanel(
-                 plotlyOutput("distPlot")
+                 fluidRow(
+                   column(6, plotlyOutput("boxPlot")),  # Boxplot on the left
+                   column(6, plotlyOutput("histPlot"))  # Histogram on the right
+                 ),
+                 fluidRow(
+                   column(12, plotlyOutput("pregnancyViolinPlot"))  # Violin plot for pregnancies
+                 )
                )
              )
     ),
@@ -68,29 +72,66 @@ ui <- fluidPage(
 
 # Server
 server <- function(input, output) {
-  # Histogram or Boxplot Visualization
-  output$distPlot <- renderPlotly({
+  # Boxplot Visualization
+  output$boxPlot <- renderPlotly({
     feature <- input$feature
+    p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[feature]], fill = Outcome)) +
+      geom_boxplot() +
+      labs(
+        title = paste("Boxplot of", feature, "by Diabetic Status"),
+        x = "Diabetes Status",
+        y = feature,
+        fill = "Diabetes Status"
+      ) +
+      scale_fill_manual(
+        values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
+      ) +
+      theme_minimal() + 
+      theme(legend.position = "bottom")
     
-    if (input$show_boxplot) {
-      # Boxplot visualization
-      p <- ggplot(diabetes_data, aes(x = factor(Outcome), y = .data[[feature]], fill = factor(Outcome))) +
-        geom_boxplot() +
-        labs(x = "Diabetic Status", y = feature, fill = "Outcome") +
-        scale_fill_manual(values = c("0" = "skyblue", "1" = "salmon")) +
-        theme_minimal()
-    } else if (input$show_histogram) {
-      # Histogram with Density Plot
-      p <- ggplot(diabetes_data, aes_string(x = feature, fill = "factor(Outcome)")) +
-        geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
-        geom_density(alpha = 0.7) +
-        labs(title = paste("Distribution of", feature), x = feature, y = "Density") +
-        scale_fill_manual(values = c("0" = "skyblue", "1" = "salmon"), labels = c("Non-Diabetic", "Diabetic")) +
-        theme_minimal()
-    }
-    
-    # Convert the ggplot object to plotly
     ggplotly(p)
+  })
+  
+  # Histogram with Density Plot
+  output$histPlot <- renderPlotly({
+    feature <- input$feature
+    p <- ggplot(diabetes_data, aes_string(x = feature, fill = "Outcome")) +
+      geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
+      geom_density(alpha = 0.7) +
+      labs(
+        title = paste("Distribution of", feature, "by Diabetic Status"),
+        x = feature,
+        y = "Density",
+        fill = "Diabetes Status"
+      ) +
+      scale_fill_manual(
+        values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
+      ) +
+      theme_minimal() + 
+      theme(legend.position = "bottom")
+    
+    ggplotly(p)
+  })
+  
+  # Violin Plot with Jittered Points for Number of Pregnancies
+  output$pregnancyViolinPlot <- renderPlotly({
+    p <- ggplot(diabetes_data, aes(x = Outcome, y = Pregnancies, fill = Outcome)) +
+      geom_violin(trim = FALSE, alpha = 0.5) +
+      geom_jitter(aes(text = paste("Number of Pregnancies:", Pregnancies)), 
+                  color = "black", width = 0.2, alpha = 0.6) +
+      labs(
+        title = "Distribution of Pregnancies by Diabetic Status",
+        x = "Diabetes Status",
+        y = "Number of Pregnancies",
+        fill = "Diabetes Status"
+      ) +
+      scale_fill_manual(
+        values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
+      ) +
+      theme_minimal() + 
+      theme(legend.position = "bottom")
+    
+    ggplotly(p, tooltip = "text")
   })
   
   # Risk Calculation based on user input
@@ -113,5 +154,3 @@ server <- function(input, output) {
 # Run the application 
 shinyApp(ui = ui, server = server)
 
-
-```
