@@ -1,0 +1,117 @@
+```{r}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(caret)  # For logistic regression model
+
+# Load and preprocess dataset
+diabetes_data <- read_csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
+
+# Remove rows where columns other than Pregnancies and Outcome contain 0 values
+diabetes_data <- diabetes_data %>%
+  filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0))
+
+# Fit a logistic regression model for diabetes risk prediction
+model <- glm(Outcome ~ Age + Pregnancies + BMI + Glucose, data = diabetes_data, family = "binomial")
+
+# UI
+ui <- fluidPage(
+  titlePanel("Type 2 Diabetes Risk Interface"),
+  tags$br(),
+  
+  # Introductory Text
+  fluidRow(
+    column(12, 
+           h3("Understanding Diabetes and the Dataset"),
+           tags$p("This app uses data on various health metrics to assess diabetes risk and provide insights. 
+                  The dataset is based on individuals of Pima Indian heritage, examining attributes like age, 
+                  BMI, and glucose levels to identify potential diabetes risk factors.")
+    )
+  ),
+  
+  # Tabbed layout for visualizations and risk calculator
+  tabsetPanel(
+    tabPanel("Visualizations",
+             sidebarLayout(
+               sidebarPanel(
+                 h4("Interactive Visualizations"),
+                 selectInput("feature", "Select Feature:", 
+                             choices = c("BMI", "Glucose", "BloodPressure", "Age")),
+                 checkboxInput("show_boxplot", "Show Boxplot", TRUE),
+                 checkboxInput("show_histogram", "Show Histogram with Density", FALSE)
+               ),
+               mainPanel(
+                 plotlyOutput("distPlot")
+               )
+             )
+    ),
+    
+    tabPanel("Diabetes Risk Calculator",
+             sidebarLayout(
+               sidebarPanel(
+                 h4("Risk Calculator"),
+                 numericInput("input_age", "Age:", 30, min = 1, max = 120),
+                 numericInput("input_pregnancies", "Number of Pregnancies:", 1, min = 0),
+                 numericInput("input_BMI", "BMI:", 25, min = 0),
+                 numericInput("input_glucose", "Glucose Level:", 100, min = 0),
+                 actionButton("calc_risk", "Calculate Diabetes Risk")
+               ),
+               mainPanel(
+                 h4("Estimated Diabetes Risk:"),
+                 textOutput("riskOutput")
+               )
+             )
+    )
+  )
+)
+
+# Server
+server <- function(input, output) {
+  # Histogram or Boxplot Visualization
+  output$distPlot <- renderPlotly({
+    feature <- input$feature
+    
+    if (input$show_boxplot) {
+      # Boxplot visualization
+      p <- ggplot(diabetes_data, aes(x = factor(Outcome), y = .data[[feature]], fill = factor(Outcome))) +
+        geom_boxplot() +
+        labs(x = "Diabetic Status", y = feature, fill = "Outcome") +
+        scale_fill_manual(values = c("0" = "skyblue", "1" = "salmon")) +
+        theme_minimal()
+    } else if (input$show_histogram) {
+      # Histogram with Density Plot
+      p <- ggplot(diabetes_data, aes_string(x = feature, fill = "factor(Outcome)")) +
+        geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
+        geom_density(alpha = 0.7) +
+        labs(title = paste("Distribution of", feature), x = feature, y = "Density") +
+        scale_fill_manual(values = c("0" = "skyblue", "1" = "salmon"), labels = c("Non-Diabetic", "Diabetic")) +
+        theme_minimal()
+    }
+    
+    # Convert the ggplot object to plotly
+    ggplotly(p)
+  })
+  
+  # Risk Calculation based on user input
+  observeEvent(input$calc_risk, {
+    new_data <- data.frame(
+      Age = input$input_age,
+      Pregnancies = input$input_pregnancies,
+      BMI = input$input_BMI,
+      Glucose = input$input_glucose
+    )
+    
+    # Predict probability
+    risk <- predict(model, newdata = new_data, type = "response")
+    output$riskOutput <- renderText({
+      paste0("Your estimated risk of diabetes is ", round(risk * 100, 2), "%.")
+    })
+  })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+
+```
