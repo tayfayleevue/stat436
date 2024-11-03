@@ -4,14 +4,36 @@ library(dplyr)
 library(plotly)
 library(caret)
 
-# Load and preprocess dataset
+
 diabetes_data <- read.csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
 diabetes_data <- diabetes_data %>%
   filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0)) %>%
   mutate(Outcome = factor(Outcome, levels = c(0, 1), labels = c("Non-Diabetic", "Diabetic")))
 model <- glm(Outcome ~ Age + Pregnancies + BMI + Glucose, data = diabetes_data, family = "binomial")
 
-# UI
+
+get_y_label <- function(feature) {
+  if (feature == "BloodPressure") "Blood Pressure" else feature
+}
+
+
+apply_fill_scale <- function(plot) {
+  plot + scale_fill_manual(values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")) +
+    theme_minimal() + theme(legend.position = "bottom", plot.title = element_text(size = 12))
+}
+
+
+get_risk_advice <- function(risk_percent) {
+  if (risk_percent < 25) {
+    list("Low", "green", "Your estimated risk is low. Maintain a balanced diet, regular exercise, and annual health check-ups to keep your risk low.")
+  } else if (risk_percent < 50) {
+    list("Moderate", "orange", "Your estimated risk is moderate. Monitor blood sugar levels, maintain a healthy weight, and engage in regular physical activity to help manage your risk.")
+  } else {
+    list("High", "red", "Your estimated risk is high. Consult a healthcare provider and consider lifestyle changes, such as a low-sugar diet and increased physical activity.")
+  }
+}
+
+
 ui <- fluidPage(
   titlePanel("Type 2 Diabetes Risk Interface"),
   
@@ -24,14 +46,13 @@ ui <- fluidPage(
     )
   ),
   
-  # Tabbed layout for visualizations and risk calculator
   tabsetPanel(
     tabPanel("Visualizations",
              sidebarLayout(
                sidebarPanel(
                  h4("Explore Data by Feature"),
                  selectInput("feature", "Select Feature:", 
-                             choices = c("BMI", "Glucose", "BloodPressure", "Age")),
+                             choices = c("BMI", "Glucose", "Blood Pressure" = "BloodPressure", "Age")),
                  tags$p("Select a health metric to view its distribution across diabetic and non-diabetic groups.")
                ),
                mainPanel(
@@ -61,7 +82,7 @@ ui <- fluidPage(
                  width = 6,
                  h4("Estimated Diabetes Risk:"),
                  uiOutput("riskOutput"),
-                 uiOutput("riskAdvice")  # New output for advice based on risk level
+                 uiOutput("riskAdvice")
                )
              )
     ),
@@ -85,131 +106,44 @@ ui <- fluidPage(
   )
 )
 
-#Functions for server
-# Box plot function for selected feature
-box_plot_func <- function(feature) {
-  p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[feature]], fill = Outcome)) +
-    geom_boxplot() +
-    labs(
-      title = paste("Boxplot of", feature, "by Diabetic Status"),
-      x = "Diabetes Status (Non-Diabetic or Diabetic)",
-      y = feature,
-      fill = "Diabetes Status"
-    ) +
-    scale_fill_manual(
-      values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
-    ) +
-    theme_minimal() + 
-    theme(legend.position = "bottom", 
-          plot.title = element_text(size = 12))
-  
-  ggplotly(p)
-}
 
-# Density plot function for selected feature
-hist_plot_func <- function(feature) {
-  p <- ggplot(diabetes_data, aes_string(x = feature, fill = "Outcome")) +
-    geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
-    geom_density(alpha = 0.6) +
-    labs(
-      title = paste("Distribution of", feature, "by Diabetic Status"),
-      x = feature,
-      y = "Density",
-      fill = "Diabetes Status"
-    ) +
-    scale_fill_manual(
-      values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
-    ) +
-    theme_minimal() + 
-    theme(legend.position = "bottom", 
-          plot.title = element_text(size = 12))
-  
-  ggplotly(p)
-}
-
-# Density plot function for pregnancies
-pregnancy_density_plot_func <- function() {
-  p <- ggplot(diabetes_data, aes(x = Pregnancies, fill = Outcome)) +
-    geom_density(alpha = 0.6) +
-    labs(
-      title = "Distribution of Number of Pregnancies by Diabetic Status",
-      x = "Number of Pregnancies",
-      y = "Density",
-      fill = "Diabetes Status"
-    ) +
-    scale_fill_manual(
-      values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
-    ) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      plot.title = element_text(size = 12, hjust = 0.5)
-    )
-  
-  ggplotly(p)
-}
-
-# Risk calculation function with advice based on risk level
-risk_calculation_func <- function(age, pregnancies, bmi, glucose) {
-  new_data <- data.frame(
-    Age = age,
-    Pregnancies = pregnancies,
-    BMI = bmi,
-    Glucose = glucose
-  )
-  
-  risk <- predict(model, newdata = new_data, type = "response")
-  risk_percent <- round(risk * 100, 2)
-  
-  # Determine risk level and advice
-  if (risk_percent < 25) {
-    risk_level <- "Low"
-    advice <- "Your estimated risk is low. Maintain a balanced diet, regular exercise, and annual health check-ups to keep your risk low."
-    risk_color <- "green"
-  } else if (risk_percent < 50) {
-    risk_level <- "Moderate"
-    advice <- "Your estimated risk is moderate. It’s advisable to monitor blood sugar levels, maintain a healthy weight, and engage in regular physical activity to help manage your risk."
-    risk_color <- "orange"
-  } else {
-    risk_level <- "High"
-    advice <- "Your estimated risk is high. Consult a healthcare provider for a comprehensive evaluation and guidance. Consider lifestyle changes, such as a low-sugar diet and increased physical activity."
-    risk_color <- "red"
-  }
-  
-  list(
-    risk_text = paste0("Your estimated risk of diabetes is ", risk_percent, "% (", 
-                       tags$span(style = paste0("color:", risk_color), risk_level), " Risk)."),
-    advice = advice
-  )
-}
-
-# Server
 server <- function(input, output) {
 
   output$boxPlot <- renderPlotly({
-    box_plot_func(input$feature)
+    y_label <- get_y_label(input$feature)
+    p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[input$feature]], fill = Outcome)) +
+      geom_boxplot() +
+      labs(title = paste("Boxplot of", y_label, "by Diabetic Status"), x = "Diabetes Status", y = y_label)
+    apply_fill_scale(p) %>% ggplotly()
   })
   
   output$histPlot <- renderPlotly({
-    hist_plot_func(input$feature)
+    x_label <- get_y_label(input$feature)
+    p <- ggplot(diabetes_data, aes_string(x = input$feature, fill = "Outcome")) +
+      geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
+      geom_density(alpha = 0.6) +
+      labs(title = paste("Distribution of", x_label, "by Diabetic Status"), x = x_label, y = "Density")
+    apply_fill_scale(p) %>% ggplotly()
   })
   
   output$pregnancyDensityPlot <- renderPlotly({
-    pregnancy_density_plot_func()
+    p <- ggplot(diabetes_data, aes(x = Pregnancies, fill = Outcome)) +
+      geom_density(alpha = 0.6) +
+      labs(title = "Distribution of Number of Pregnancies by Diabetic Status", x = "Number of Pregnancies", y = "Density")
+    apply_fill_scale(p) %>% ggplotly()
   })
 
-  # Reactive risk calculation
   risk_estimate <- reactive({
-    risk_calculation_func(input$input_age, input$input_pregnancies, input$input_BMI, input$input_glucose)
+    risk_percent <- round(predict(model, newdata = data.frame(Age = input$input_age, Pregnancies = input$input_pregnancies, BMI = input$input_BMI, Glucose = input$input_glucose), type = "response") * 100, 2)
+    list(level = get_risk_advice(risk_percent))
   })
   
   observeEvent(input$calc_risk, {
     output$riskOutput <- renderUI({
-      HTML(risk_estimate()$risk_text)
+      HTML(paste0("Your estimated risk of diabetes is ", risk_estimate()$risk_percent, "% (",
+                  tags$span(style = paste0("color:", risk_estimate()$level[[2]]), risk_estimate()$level[[1]]), " Risk)."))
     })
-    output$riskAdvice <- renderUI({
-      tags$p(risk_estimate()$advice)
-    })
+    output$riskAdvice <- renderUI({ tags$p(risk_estimate()$level[[3]]) })
   })
 }
 
