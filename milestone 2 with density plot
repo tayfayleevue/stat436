@@ -5,23 +5,22 @@ library(plotly)
 library(caret)
 
 diabetes_data <- read.csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
-
 diabetes_data <- diabetes_data %>%
   filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0)) %>%
   mutate(Outcome = factor(Outcome, levels = c(0, 1), labels = c("Non-Diabetic", "Diabetic")))
-
 model <- glm(Outcome ~ Age + Pregnancies + BMI + Glucose, data = diabetes_data, family = "binomial")
 
-# UI
+# User Interface
 ui <- fluidPage(
   titlePanel("Type 2 Diabetes Risk Interface"),
   
   fluidRow(
     column(12, 
-           h3("Understanding Diabetes and the Dataset"),
-           tags$p("This app uses data on various health metrics to assess diabetes risk and provide insights. 
-                  The dataset is based on individuals of Pima Indian heritage, examining attributes like age, 
-                  BMI, and glucose levels to identify potential diabetes risk factors.")
+           h3("Understanding and Predicting Diabetes"),
+           tags$p("This app is an easy-to-use tool that uses various health metrics to helps people understand key health factors linked to diabetes and 
+                  assess diabetes risk. The dataset is based on females of Pima Indian heritage, examining attributes like age, BMI, pregnancies and glucose 
+                  levels to identify potential diabetes risk factors. Users can explore interactive plots and get a personalized diabetes risk estimate by 
+                  entering details like age, BMI, and glucose levels.")
     )
   ),
   
@@ -50,11 +49,11 @@ ui <- fluidPage(
              sidebarLayout(
                sidebarPanel(
                  width = 6,
-                 h4("Risk Calculator"),
-                 numericInput("input_age", "Age:", 30, min = 1, max = 120),
-                 numericInput("input_pregnancies", "Number of Pregnancies:", 1, min = 0),
-                 numericInput("input_BMI", "BMI: (Don't know your BMI? Calculate at https://www.calculator.net/bmi-calculator.html)", 25, min = 0),
-                 numericInput("input_glucose", "Glucose Level: (from 0 to 199)", 100, min = 0, max = 199),
+                 h4("Risk Calculator Inputs"),
+                 numericInput("input_age", "Age:", NULL, min = 1, max = 120),
+                 numericInput("input_pregnancies", "Number of Pregnancies:", NULL, min = 0),
+                 numericInput("input_BMI", "BMI: (Don't know your BMI? Calculate at https://www.calculator.net/bmi-calculator.html)", NULL, min = 0),
+                 numericInput("input_glucose", "Glucose Level: (from 0 mg/dL to 199 mg/dL)", NULL, min = 0, max = 199),
                  actionButton("calc_risk", "Calculate Diabetes Risk")
                ),
                mainPanel(
@@ -67,53 +66,50 @@ ui <- fluidPage(
   )
 )
 
-# Server
-server <- function(input, output) {
-  # Boxplot Visualization
-  output$boxPlot <- renderPlotly({
-    feature <- input$feature
-    p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[feature]], fill = Outcome)) +
-      geom_boxplot() +
-      labs(
-        title = paste("Boxplot of", feature, "by Diabetic Status"),
-        x = "Diabetes Status",
-        y = feature,
-        fill = "Diabetes Status"
-      ) +
-      scale_fill_manual(
-        values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
-      ) +
-      theme_minimal() + 
-      theme(legend.position = "bottom", 
-            plot.title = element_text(size = 12))
-    
-    ggplotly(p)
-  })
+#Functions for server
+#Box plot function for selected feature
+box_plot_func <- function(feature) {
+  p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[feature]], fill = Outcome)) +
+    geom_boxplot() +
+    labs(
+      title = paste("Boxplot of", feature, "by Diabetic Status"),
+      x = "Diabetes Status",
+      y = feature,
+      fill = "Diabetes Status"
+    ) +
+    scale_fill_manual(
+      values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
+    ) +
+    theme_minimal() + 
+    theme(legend.position = "bottom", 
+          plot.title = element_text(size = 12))
   
-  # Histogram with Density Plot
-  output$histPlot <- renderPlotly({
-    feature <- input$feature
-    p <- ggplot(diabetes_data, aes_string(x = feature, fill = "Outcome")) +
-      geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
-      geom_density(alpha = 0.7) +
-      labs(
-        title = paste("Distribution of", feature, "by Diabetic Status"),
-        x = feature,
-        y = "Density",
-        fill = "Diabetes Status"
-      ) +
-      scale_fill_manual(
-        values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
-      ) +
-      theme_minimal() + 
-      theme(legend.position = "bottom", 
-            plot.title = element_text(size = 12))
-    
-    ggplotly(p)
-  })
+  ggplotly(p)
+}
+
+#Density plot function for selected feature
+hist_plot_func <- function(feature) {
+  p <- ggplot(diabetes_data, aes_string(x = feature, fill = "Outcome")) +
+    geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
+    geom_density(alpha = 0.6) +
+    labs(
+      title = paste("Distribution of", feature, "by Diabetic Status"),
+      x = feature,
+      y = "Density",
+      fill = "Diabetes Status"
+    ) +
+    scale_fill_manual(
+      values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")
+    ) +
+    theme_minimal() + 
+    theme(legend.position = "bottom", 
+          plot.title = element_text(size = 12))
   
-  # Create a density plot for the number of pregnancies
-  output$pregnancyDensityPlot <- renderPlotly({
+  ggplotly(p)
+}
+
+#Density plot function for pregnancies
+pregnancy_density_plot_func <- function() {
   p <- ggplot(diabetes_data, aes(x = Pregnancies, fill = Outcome)) +
     geom_density(alpha = 0.6) +
     labs(
@@ -128,29 +124,51 @@ server <- function(input, output) {
     theme_minimal() +
     theme(
       legend.position = "bottom",
-      plot.title = element_text(size = 12)
+      plot.title = element_text(size = 12, hjust = 0.5)
     )
   
   ggplotly(p)
-})
+}
 
-
+#Risk calculation function
+risk_calculation_func <- function(age, pregnancies, bmi, glucose) {
+  new_data <- data.frame(
+    Age = age,
+    Pregnancies = pregnancies,
+    BMI = bmi,
+    Glucose = glucose
+  )
   
-  # Risk Calculation based on user input
+  risk <- predict(model, newdata = new_data, type = "response")
+  paste0("Your estimated risk of diabetes is ", round(risk * 100, 2), "%.")
+}
+
+# Server
+server <- function(input, output) {
+
+  output$boxPlot <- renderPlotly({
+    box_plot_func(input$feature)
+  })
+  
+  output$histPlot <- renderPlotly({
+    hist_plot_func(input$feature)
+  })
+  
+  output$pregnancyDensityPlot <- renderPlotly({
+    pregnancy_density_plot_func()
+  })
+
+  #Reactive node for risk calculation
+  risk_estimate <- reactive({
+    risk_calculation_func(input$input_age, input$input_pregnancies, input$input_BMI, input$input_glucose)
+  })
+  
   observeEvent(input$calc_risk, {
-    new_data <- data.frame(
-      Age = input$input_age,
-      Pregnancies = input$input_pregnancies,
-      BMI = input$input_BMI,
-      Glucose = input$input_glucose
-    )
-    
-    # Predict probability
-    risk <- predict(model, newdata = new_data, type = "response")
     output$riskOutput <- renderText({
-      paste0("Your estimated risk of diabetes is ", round(risk * 100, 2), "%.")
+      risk_estimate()
     })
   })
 }
 
 shinyApp(ui = ui, server = server)
+
