@@ -4,24 +4,16 @@ library(dplyr)
 library(plotly)
 library(caret)
 
-
 diabetes_data <- read.csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
 diabetes_data <- diabetes_data %>%
   filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0)) %>%
   mutate(Outcome = factor(Outcome, levels = c(0, 1), labels = c("Non-Diabetic", "Diabetic")))
 model <- glm(Outcome ~ Age + Pregnancies + BMI + Glucose, data = diabetes_data, family = "binomial")
 
-
-get_y_label <- function(feature) {
-  if (feature == "BloodPressure") "Blood Pressure" else feature
-}
-
-
 apply_fill_scale <- function(plot) {
   plot + scale_fill_manual(values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")) +
     theme_minimal() + theme(legend.position = "bottom", plot.title = element_text(size = 12))
 }
-
 
 get_risk_advice <- function(risk_percent) {
   if (risk_percent < 25) {
@@ -33,7 +25,7 @@ get_risk_advice <- function(risk_percent) {
   }
 }
 
-
+# UI
 ui <- fluidPage(
   titlePanel("Type 2 Diabetes Risk Interface"),
   
@@ -57,6 +49,7 @@ ui <- fluidPage(
                ),
                mainPanel(
                  fluidRow(
+                   column(12, align = "center", textOutput("sharedTitle", container = tags$h3)),
                    column(6, plotlyOutput("boxPlot")), 
                    column(6, plotlyOutput("histPlot")) 
                  ),
@@ -82,65 +75,64 @@ ui <- fluidPage(
                  width = 6,
                  h4("Estimated Diabetes Risk:"),
                  uiOutput("riskOutput"),
-                 uiOutput("riskAdvice")
-               )
-             )
-    ),
-    
-    tabPanel("About Risk Calculation",
-             fluidRow(
-               column(12, 
-                      h4("How is Diabetes Risk Calculated?"),
-                      tags$p("This risk estimate is based on a logistic regression model trained on the Pima Indian Diabetes dataset."),
-                      tags$ul(
-                        tags$li("Logistic regression is used to model binary outcomes—in this case, the likelihood of diabetes."),
-                        tags$li("Key factors include age, number of pregnancies, BMI, and glucose levels."),
-                        tags$li("These factors have a significant association with diabetes risk, supported by research.")
-                      ),
-                      tags$p("The predicted risk percentage reflects the probability of diabetes based on patterns observed in the dataset."),
-                      h5("Model Limitations"),
-                      tags$p("The dataset focuses on Pima Indian women over 21 years old. Results may vary in different demographics. For personalized advice, consult a healthcare professional.")
+                 uiOutput("riskAdvice"),
+                 tags$hr(),
+                 h4("How is Diabetes Risk Calculated?"),
+                 tags$p("This risk estimate is based on a logistic regression model trained on the Pima Indian Diabetes dataset."),
+                 tags$ul(
+                   tags$li("Logistic regression is used to model binary outcomes—in this case, the likelihood of diabetes."),
+                   tags$li("Key factors include age, number of pregnancies, BMI, and glucose levels."),
+                   tags$li("These factors have a significant association with diabetes risk, supported by research.")
+                 ),
+                 tags$p("The predicted risk percentage reflects the probability of diabetes based on patterns observed in the dataset."),
+                 h5("Model Limitations"),
+                 tags$p("The dataset focuses on Pima Indian women over 21 years old. Results may vary in different demographics. For personalized advice, consult a healthcare professional.")
                )
              )
     )
   )
 )
 
-
+# Server
 server <- function(input, output) {
 
+  output$sharedTitle <- renderText({
+    feature_name <- if (input$feature == "BloodPressure") "Blood Pressure" else input$feature
+    paste("Distribution of", feature_name, "by Diabetic Status")
+  })
+  
   output$boxPlot <- renderPlotly({
-    y_label <- get_y_label(input$feature)
+    y_label <- if (input$feature == "BloodPressure") "Blood Pressure" else input$feature
     p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[input$feature]], fill = Outcome)) +
       geom_boxplot() +
-      labs(title = paste("Boxplot of", y_label, "by Diabetic Status"), x = "Diabetes Status", y = y_label)
+      labs(x = "Diabetes Status", y = y_label)
     apply_fill_scale(p) %>% ggplotly()
   })
   
   output$histPlot <- renderPlotly({
-    x_label <- get_y_label(input$feature)
+    x_label <- if (input$feature == "BloodPressure") "Blood Pressure" else input$feature
     p <- ggplot(diabetes_data, aes_string(x = input$feature, fill = "Outcome")) +
       geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
       geom_density(alpha = 0.6) +
-      labs(title = paste("Distribution of", x_label, "by Diabetic Status"), x = x_label, y = "Density")
+      labs(x = x_label, y = "Density")
     apply_fill_scale(p) %>% ggplotly()
   })
   
   output$pregnancyDensityPlot <- renderPlotly({
     p <- ggplot(diabetes_data, aes(x = Pregnancies, fill = Outcome)) +
       geom_density(alpha = 0.6) +
-      labs(title = "Distribution of Number of Pregnancies by Diabetic Status", x = "Number of Pregnancies", y = "Density")
+      labs(x = "Number of Pregnancies", y = "Density")
     apply_fill_scale(p) %>% ggplotly()
   })
 
   risk_estimate <- reactive({
     risk_percent <- round(predict(model, newdata = data.frame(Age = input$input_age, Pregnancies = input$input_pregnancies, BMI = input$input_BMI, Glucose = input$input_glucose), type = "response") * 100, 2)
-    list(level = get_risk_advice(risk_percent))
+    list(percent = risk_percent, level = get_risk_advice(risk_percent))
   })
   
   observeEvent(input$calc_risk, {
     output$riskOutput <- renderUI({
-      HTML(paste0("Your estimated risk of diabetes is ", risk_estimate()$risk_percent, "% (",
+      HTML(paste0("Your estimated risk of diabetes is ", risk_estimate()$percent, "% (",
                   tags$span(style = paste0("color:", risk_estimate()$level[[2]]), risk_estimate()$level[[1]]), " Risk)."))
     })
     output$riskAdvice <- renderUI({ tags$p(risk_estimate()$level[[3]]) })
