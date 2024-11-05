@@ -97,14 +97,13 @@ ui <- fluidPage(
                  fluidRow(
                    column(12, 
                           HTML("<h4>Interpretation of the Correlation Heatmap</h4>
-                                <p>The correlation heatmap visualizes the relationships among key health metrics in the dataset, such as BMI, glucose level, blood pressure, insulin, and other features associated with diabetes risk. Each cell in the heatmap represents the correlation between two features, with colors indicating the strength of the relationship.</p>
-                                <h5>Key Insights:</h5>
+                                <p>The correlation heatmap visualizes the relationships among key health metrics in the dataset, such as pregnancies, glucose level, blood pressure, insulin, BMI, and age. Each cell in the heatmap represents the correlation between two features, with colors indicating the strength of the relationship.</p>
+                                <h5>Correlation Levels:</h5>
                                 <ul>
                                   <li><strong>High Correlations:</strong> Certain features, such as insulin and glucose, show strong positive correlations. This may indicate that as one increases, the other tends to increase as well, reflecting the association between elevated glucose levels and higher insulin concentration.</li>
                                   <li><strong>Moderate Correlations:</strong> Features such as blood pressure and BMI may show moderate correlations, indicating some association but not as strong as those seen between glucose  and insulin.</li>
-                                  <li><strong>Weak or No Correlations:</strong> Some feature pairs show weak or no significant correlation, suggesting that variations in one do not strongly correspond to variations in the other.</li>
-                                </ul>
-                                <p>This heatmap helps in identifying which metrics may serve as key indicators when assessing diabetes risk and guides the selection of features for predictive modeling.</p>")
+                                  <li><strong>Weak or No Correlations:</strong> Some feature pairs show weak or no significant correlation such as BMI and pregnancies, suggesting that variations in one do not strongly correspond to variations in the other.</li>
+                                  </ul>")
                    )
                  )
                )
@@ -138,11 +137,12 @@ ui <- fluidPage(
                  tags$p("The predicted risk percentage reflects the probability of diabetes based on patterns observed in the dataset."),
                  h5("Model Limitations"),
                  tags$p("The dataset focuses on Pima Indian women over 21 years old. Results may vary in different demographics. For personalized advice, consult a healthcare professional.")
-               )
-             )
+        )
+      )
     )
   )
 )
+
 
 # Server
 server <- function(input, output) {
