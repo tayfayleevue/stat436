@@ -118,7 +118,7 @@ ui <- fluidPage(
                  numericInput("input_age", "Age:", NULL, min = 1, max = 120),
                  numericInput("input_pregnancies", "Number of Pregnancies:", NULL, min = 0),
                  numericInput("input_BMI", "BMI (Calculate at https://www.calculator.net/bmi-calculator.html):", NULL, min = 0),
-                 numericInput("input_glucose", "Glucose Level (0-199 mg/dL):", NULL, min = 0, max = 199),
+                 numericInput("input_glucose", "Glucose Level (mg/dL):", NULL),
                  actionButton("calc_risk", "Calculate Diabetes Risk")
                ),
                mainPanel(
