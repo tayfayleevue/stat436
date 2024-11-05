@@ -70,7 +70,7 @@ ui <- fluidPage(
     column(12, 
            h3("Understanding and Predicting Diabetes"),
            tags$p("This interactive tool helps users assess diabetes risk by examining key health factors like BMI, glucose, age, and pregnancies, etc."),
-           tags$p("The dataset used here is from the Pima Indian heritage study and focuses on metrics that are highly correlated with diabetes risk. Explore the 'Visualizations' tab to compare diabetic and non-diabetic individuals on various health metrics."),
+           tags$p("The dataset used here is from the Pima Indian heritage study and focuses on metrics that are highly correlated with diabetes risk. The study was performed only with women aged 21 or older. Explore the 'Visualizations' tab to compare diabetic and non-diabetic individuals on various health metrics."),
            tags$p("In the 'Diabetes Risk Calculator' tab, you can input personal information to receive a risk estimate.")
     )
   ),
@@ -97,7 +97,7 @@ ui <- fluidPage(
                  fluidRow(
                    column(12, 
                           HTML("<h4>Interpretation of the Correlation Heatmap</h4>
-                                <p>The correlation heatmap visualizes the relationships among key health metrics in the dataset, such as pregnancies, glucose level, blood pressure, insulin, BMI, and age. Each cell in the heatmap represents the correlation between two features, with colors indicating the strength of the relationship.</p>
+                                <p>The correlation heatmap visualizes the relationships between key health metrics in the dataset. The color of each cell represents the strength of the relationship between the two features.</p>
                                 <h5>Correlation Levels:</h5>
                                 <ul>
                                   <li><strong>High Correlations:</strong> Certain features, such as insulin and glucose, show strong positive correlations. This may indicate that as one increases, the other tends to increase as well, reflecting the association between elevated glucose levels and higher insulin concentration.</li>
@@ -132,7 +132,6 @@ ui <- fluidPage(
                  tags$ul(
                    tags$li("Logistic regression is used to model binary outcomes—in this case, the likelihood of diabetes."),
                    tags$li("Key factors include age, number of pregnancies, BMI, and glucose levels."),
-                   tags$li("These factors have a significant association with diabetes risk.")
                  ),
                  tags$p("The predicted risk percentage reflects the probability of diabetes based on patterns observed in the dataset."),
                  h5("Model Limitations"),
