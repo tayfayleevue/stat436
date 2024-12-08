@@ -1,0 +1,264 @@
+---
+title: "Untitled"
+author: "Faith Vue"
+date: "2024-12-08"
+output: html_document
+---
+
+```{r}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(caret)
+library(reshape2)
+
+diabetes_data <- read.csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
+diabetes_data <- diabetes_data %>%
+  filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0)) %>%
+  mutate(Outcome = factor(Outcome, levels = c(0, 1), labels = c("Non-Diabetic", "Diabetic")))
+model <- glm(Outcome ~ Age + Pregnancies + BMI + Glucose, data = diabetes_data, family = "binomial")
+
+# Functions
+apply_fill_scale <- function(plot) {
+  plot + 
+    scale_fill_manual(values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")) + 
+    theme_minimal() + 
+    theme(legend.position = "bottom", plot.title = element_text(size = 12))
+}
+
+#this is for kg/m^2
+calc_bmi_metric <- function(weight, height) {
+  return(weight / (height**2))
+}
+
+#this is for lbs/inch^2
+calc_bmi_imperial <- function(weight, height_feet, height_inches) {
+  # Convert height to inches
+  height_in_inches <- height_feet * 12 + height_inches
+  return(703 * (weight / (height_in_inches**2)))
+}
+
+generate_box_plot <- function(feature) {
+  p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[feature]], fill = Outcome)) +
+    geom_boxplot() + 
+    labs(x = "Diabetes Status", y = feature)
+  apply_fill_scale(p) %>% ggplotly()
+}
+
+generate_hist_plot <- function(feature) {
+  p <- ggplot(diabetes_data, aes_string(x = feature, fill = "Outcome")) +
+    geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
+    geom_density(alpha = 0.6) +
+    labs(x = feature, y = "Density")
+  apply_fill_scale(p) %>% ggplotly()
+}
+
+generate_correlation_heatmap <- function(data) {
+  selected_data <- data %>% 
+    select(-c(Outcome, SkinThickness, DiabetesPedigreeFunction)) %>% 
+    rename("Blood Pressure" = BloodPressure)
+
+  corr_matrix <- cor(selected_data, use = "complete.obs") 
+  melted_corr_matrix <- melt(corr_matrix) 
+  
+  p <- ggplot(data = melted_corr_matrix, aes(x = Var1, y = Var2, fill = value)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient2(low = "skyblue", high = "salmon", name = "Correlation") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1)) +
+    labs(title = "Correlation Heatmap of Diabetes Dataset Features", x = "", y = "")
+  
+  ggplotly(p)
+}
+
+get_risk_advice <- function(risk_percent) {
+  if (risk_percent < 25) {
+    list("Low", "green", "Your estimated risk is low. Maintain a balanced diet, regular exercise, and annual health check-ups to keep your risk low.")
+  } else if (risk_percent < 50) {
+    list("Moderate", "orange", "Your estimated risk is moderate. Monitor blood sugar levels, maintain a healthy weight, and engage in regular physical activity to help manage your risk.")
+  } else {
+    list("High", "red", "Your estimated risk is high. Consult a healthcare provider and consider lifestyle changes, such as a low-sugar diet and increased physical activity.")
+  }
+}
+
+# UI
+ui <- fluidPage(
+  titlePanel("Type 2 Diabetes Risk Interface"),
+  
+  fluidRow(
+    column(12, 
+           h3("Understanding and Predicting Diabetes"),
+           tags$p("This interactive tool helps users assess diabetes risk by examining key health factors like BMI, glucose, age, and pregnancies, etc."),
+           tags$p("The dataset used here is from the Pima Indian heritage study and focuses on metrics that are highly correlated with diabetes risk. The study was performed only with women aged 21 or older. Explore the 'Visualizations' tab to compare diabetic and non-diabetic individuals on various health metrics."),
+           tags$p("In the 'Diabetes Risk Calculator' tab, you can input personal information to receive a risk estimate.")
+    )
+  ),
+  
+  tabsetPanel(
+    tabPanel("Visualizations",
+             sidebarLayout(
+               sidebarPanel(
+                 h4("Explore Data by Feature"),
+                 selectInput("feature", "Select Feature:", 
+                             choices = c("BMI", "Glucose", "Blood Pressure" = "BloodPressure", "Age", "Insulin", "Pregnancies")),
+                 tags$p("Select a health metric to view its distribution across diabetic and non-diabetic groups.")
+               ),
+               mainPanel(
+                 fluidRow(
+                   column(12, align = "center", textOutput("sharedTitle", container = tags$h3)),
+                   column(6, plotlyOutput("boxPlot")), 
+                   column(6, plotlyOutput("histPlot")) 
+                 ),
+                 fluidRow(
+                   column(12, plotlyOutput("correlationHeatmap"))
+                 ),
+                 fluidRow(
+                   column(12, 
+                          HTML("<h4>Interpretation of the Correlation Heatmap</h4>
+                                <p>The correlation heatmap visualizes the relationships between key health metrics in the dataset. The color of each cell represents the strength of the relationship between the two features.</p>
+                                <h5>Correlation Levels:</h5>
+                                <ul>
+                                  <li><strong>High Correlations:</strong> Certain features, such as insulin and glucose, show strong positive correlations. This may indicate that as one increases, the other tends to increase as well, reflecting the association between elevated glucose levels and higher insulin concentration.</li>
+                                  <li><strong>Moderate Correlations:</strong> Features such as blood pressure and BMI may show moderate correlations, indicating some association but not as strong as those seen between glucose and insulin.</li>
+                                  <li><strong>Weak or No Correlations:</strong> Some feature pairs show weak or no significant correlation such as BMI and pregnancies, suggesting that variations in one do not strongly correspond to variations in the other.</li>
+                                  </ul>")
+                   )
+                 )
+               )
+             )
+    ),
+
+    tabPanel("Diabetes Risk Calculator",
+             sidebarLayout(
+               sidebarPanel(
+                 width = 6,
+                 h4("Calculate Your Diabetes Risk"),
+                 numericInput("input_age", "Age:", NULL, min = 1, max = 120),
+                 numericInput("input_pregnancies", "Number of Pregnancies:", NULL, min = 0),
+                 numericInput("input_BMI", "BMI:", NULL, min = 0),
+                 numericInput("input_glucose", "Glucose Level (mg/dL):", NULL),
+                 actionButton("calc_risk", "Calculate Diabetes Risk")
+               ),
+               mainPanel(
+                 width = 6,
+                 h4("Estimated Diabetes Risk:"),
+                 uiOutput("riskOutput"),
+                 uiOutput("riskAdvice"),
+                 tags$hr(),
+                 h4("How is Diabetes Risk Calculated?"),
+                 tags$p("This risk estimate is based on a logistic regression model trained on the Pima Indian Diabetes dataset."),
+                 tags$ul(
+                   tags$li("Logistic regression is used to model binary outcomes—in this case, the likelihood of diabetes."),
+                   tags$li("Key factors include age, number of pregnancies, BMI, and glucose levels."),
+                 ),
+                 tags$p("The predicted risk percentage reflects the probability of diabetes based on patterns observed in the dataset."),
+                 h5("Model Limitations"),
+                 tags$p("The dataset focuses on Pima Indian women over 21 years old. Results may vary in different demographics. For personalized advice, consult a healthcare professional.")
+        )
+      )
+    ),
+    tabPanel("BMI Calculator",
+  sidebarLayout(
+    sidebarPanel(
+      width = 6,
+      h4("Calculate Your BMI"),
+      radioButtons("unit_choice", "Select Units:",
+                   choices = c("Metric (kg/m)" = "metric", "Imperial (lbs/ft, in)" = "imperial"),
+                   selected = "metric"),
+      uiOutput("dynamic_weight_input"),
+      uiOutput("dynamic_height_input"),
+      actionButton("calc_bmi", "Calculate BMI")
+    ),
+    mainPanel(
+      width = 6,
+      h4("Estimated BMI:"),
+      uiOutput("bmiOutput")
+    )
+  )
+)))
+
+# Server
+server <- function(input, output) {
+  
+  output$sharedTitle <- renderText({
+    feature_name <- if (input$feature == "BloodPressure") "Blood Pressure" else input$feature
+    paste("Distribution of", feature_name, "by Diabetic Status")
+  })
+  
+  output$boxPlot <- renderPlotly({
+    generate_box_plot(input$feature)
+  })
+  
+  output$histPlot <- renderPlotly({
+    generate_hist_plot(input$feature)
+  })
+  
+  output$correlationHeatmap <- renderPlotly({
+  generate_correlation_heatmap(diabetes_data)
+})
+  
+  risk_estimate <- reactive({
+    risk_percent <- round(predict(model, newdata = data.frame(Age = input$input_age, Pregnancies = input$input_pregnancies, BMI = input$input_BMI, Glucose = input$input_glucose), type = "response") * 100, 2)
+    list(percent = risk_percent, level = get_risk_advice(risk_percent))
+  })
+  
+  observeEvent(input$calc_risk, {
+    if (is.na(input$input_age) || is.na(input$input_pregnancies) || is.na(input$input_BMI) || is.na(input$input_glucose)) {
+      output$riskOutput <- renderUI({ HTML("Some of the predictors are blank, please check your inputs.") })
+      output$riskAdvice <- renderUI(NULL)
+    } else {
+      output$riskOutput <- renderUI({
+        HTML(paste0("Your estimated risk of diabetes is ", risk_estimate()$percent, "% (",
+                    tags$span(style = paste0("color:", risk_estimate()$level[[2]]), risk_estimate()$level[[1]]), " Risk)."))
+      })
+      output$riskAdvice <- renderUI({ tags$p(risk_estimate()$level[[3]]) })
+    }
+  })
+  
+  output$dynamic_weight_input <- renderUI({
+    if (input$unit_choice == "metric") {
+      numericInput("weight", "Weight (kg):", value = NULL, min = 10, max = 500)
+    } else {
+      numericInput("weight", "Weight (lbs):", value = NULL, min = 20, max = 1000)
+    }
+  })
+  
+  # Dynamic height input based on unit selection
+  output$dynamic_height_input <- renderUI({
+    if (input$unit_choice == "metric") {
+      numericInput("height", "Height (meters):", value = NULL, min = 0.5, max = 2.5)
+    } else {
+      tagList(
+        numericInput("height_feet", "Height (feet):", value = NULL, min = 1, max = 8),
+        numericInput("height_inches", "Height (inches):", value = NULL, min = 0, max = 11)
+      )
+    }
+  })
+  
+  # Calculate BMI
+  observeEvent(input$calc_bmi, {
+    if (input$unit_choice == "metric") {
+      if (is.na(input$weight) || is.na(input$height)) {
+        output$bmiOutput <- renderUI({ HTML("Please provide both weight and height.") })
+      } else {
+        bmi_value <- calc_bmi_metric(input$weight, input$height)
+        output$bmiOutput <- renderUI({ HTML(paste("Your BMI is ", round(bmi_value, 2))) })
+      }
+    } else {
+      if (is.na(input$weight) || is.na(input$height_feet) || is.na(input$height_inches)) {
+        output$bmiOutput <- renderUI({ HTML("Please provide both weight and height.") })
+      } else {
+        bmi_value <- calc_bmi_imperial(input$weight, input$height_feet, input$height_inches)
+        output$bmiOutput <- renderUI({ HTML(paste("Your BMI is ", round(bmi_value, 2))) })
+      }
+    }
+  })
+  
+}
+
+shinyApp(ui, server)
+    
+
+```
+
