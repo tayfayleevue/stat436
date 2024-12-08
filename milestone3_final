@@ -5,7 +5,7 @@ library(dplyr)
 library(plotly)
 library(caret)
 library(reshape2)
-library(bslib) # For theming
+library(bslib)
 
 # Load Data
 diabetes_data <- read.csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
@@ -63,7 +63,7 @@ generate_correlation_heatmap <- function(data) {
     theme_minimal() +
     theme(
       axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10),
-      plot.title = element_text(face = "bold", size = 16, hjust = 0.5) # Center the title
+      plot.title = element_text(face = "bold", size = 16, hjust = 0.5)
     ) +
     labs(title = "Correlation Heatmap of Features", x = "", y = "")
 
@@ -82,7 +82,7 @@ get_risk_advice <- function(risk_percent) {
 
 # UI
 ui <- fluidPage(
-  theme = bs_theme(bootswatch = "lux"), # Apply Lux theme for a clean, modern look
+  theme = bs_theme(bootswatch = "lux"),
 
   navbarPage(
     title = "Type 2 Diabetes Analysis",
@@ -213,10 +213,10 @@ server <- function(input, output) {
       boxPlot1, boxPlot2, 
       histPlot1, histPlot2, 
       nrows = 2, 
-      shareX = FALSE, # Ensure X-axis is not shared
-      shareY = FALSE, # Ensure Y-axis is not shared
-      titleX = TRUE,  # Display X-axis titles
-      titleY = TRUE   # Display Y-axis titles
+      shareX = FALSE, 
+      shareY = FALSE, 
+      titleX = TRUE, 
+      titleY = TRUE 
     ) %>%
       layout(
         title = "Feature Comparison",
@@ -231,7 +231,7 @@ server <- function(input, output) {
     } else if (input$input_unit_system == "imperial") {
       (input$input_weight * 703) / (input$input_height^2)
     } else {
-      NA  # Handle cases where input is incomplete
+      NA 
     }
   })
   
