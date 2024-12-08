@@ -1,3 +1,4 @@
+```{r}
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -60,8 +61,10 @@ generate_correlation_heatmap <- function(data) {
     geom_tile(color = "white") +
     scale_fill_gradient2(low = "skyblue", high = "salmon", mid = "white", midpoint = 0, name = "Correlation") +
     theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10),
-          plot.title = element_text(face = "bold", size = 16)) +
+    theme(
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10),
+      plot.title = element_text(face = "bold", size = 16, hjust = 0.5) # Center the title
+    ) +
     labs(title = "Correlation Heatmap of Features", x = "", y = "")
 
   ggplotly(p, tooltip = "text")
@@ -153,7 +156,7 @@ ui <- fluidPage(
         ),
         mainPanel(
           width = 6,
-          h4("Estimated Diabetes Risk:", align = "center"),
+          h4("Estimated Diabetes Risk:", align = "center", style = "font-size: 24px; font-weight: bold;"),
           uiOutput("riskOutput"),
           uiOutput("riskAdvice"),
           tags$hr(),
@@ -179,14 +182,13 @@ server <- function(input, output) {
     diabetes_data %>%
       group_by(Outcome) %>%
       summarize(
-        BMI_Mean = mean(BMI, na.rm = TRUE),
-        Glucose_Mean = mean(Glucose, na.rm = TRUE),
-        Age_Mean = mean(Age, na.rm = TRUE),
-        Pregnancies_Mean = mean(Pregnancies, na.rm = TRUE),
+        "BMI Mean" = mean(BMI, na.rm = TRUE),
+        "Glucose Mean" = mean(Glucose, na.rm = TRUE),
+        "Age Mean" = mean(Age, na.rm = TRUE),
+        "Pregnancies Mean" = mean(Pregnancies, na.rm = TRUE),
         "Blood Pressure Mean" = mean(BloodPressure, na.rm = TRUE),
         "Family Risk Score Mean" = mean(DiabetesPedigreeFunction, na.rm = TRUE)
-      ) %>%
-      rename("Diabetes Status" = Outcome)
+      )
   })
 
   output$correlationHeatmap <- renderPlotly({
@@ -235,3 +237,5 @@ server <- function(input, output) {
 }
 
 shinyApp(ui, server)
+
+```
