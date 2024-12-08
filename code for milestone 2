@@ -1,15 +1,4 @@
----
-title: "Untitled"
-author: "Jack"
-date: "2024-12-08"
-output: html_document
----
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r}
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -79,7 +68,10 @@ ui <- fluidPage(
                 h4("Calculate Your Diabetes Risk"),
                 numericInput("input_age", "Age:", NULL, min = 1, max = 120),
                 numericInput("input_pregnancies", "Number of Pregnancies:", NULL, min = 0),
-                numericInput("input_BMI", "BMI (Calculate at https://www.calculator.net/bmi-calculator.html):", NULL, min = 0),
+                selectInput("input_unit_system", "Unit System:", 
+                choices = c("Metric (kg, m)" = "metric", "Imperial (lb, in)" = "imperial")),
+                numericInput("input_weight", "Weight:", NULL, min = 1),
+                numericInput("input_height", "Height:", NULL, min = 1),
                 selectInput("input_glucose", "Glucose Level:", 
                             choices = c("Very Low" = 60, 
                                         "Low" = 85, 
@@ -142,27 +134,42 @@ server <- function(input, output) {
     apply_fill_scale(p) %>% ggplotly()
   })
   
+  calculate_bmi <- reactive({
+    if (input$input_unit_system == "metric") {
+      input$input_weight / (input$input_height^2)
+    } else if (input$input_unit_system == "imperial") {
+      (input$input_weight * 703) / (input$input_height^2)
+    } else {
+      NA  # Handle cases where input is incomplete
+    }
+  })
+  
   risk_estimate <- reactive({
-    # Map selected glucose category to the appropriate integer value
+    bmi_value <- calculate_bmi()
+    
     risk_percent <- round(predict(model, 
                                   newdata = data.frame(
                                     Age = input$input_age, 
                                     Pregnancies = input$input_pregnancies, 
-                                    BMI = input$input_BMI, 
+                                    BMI = bmi_value, 
                                     Glucose = as.numeric(input$input_glucose)), 
                                   type = "response") * 100, 2)
     list(percent = risk_percent, level = get_risk_advice(risk_percent))
   })
   
   observeEvent(input$calc_risk, {
+    if (is.na(input$input_age) || is.na(input$input_pregnancies) || is.na(input$input_height) || is.na(input$input_weight) || is.na(input$input_glucose)) {
+      output$riskOutput <- renderUI({ HTML("Some of the predictors are blank, please check your inputs.") })
+      output$riskAdvice <- renderUI(NULL)
+    } else {
     output$riskOutput <- renderUI({
       HTML(paste0("Your estimated risk of diabetes is ", risk_estimate()$percent, "% (",
                   tags$span(style = paste0("color:", risk_estimate()$level[[2]]), risk_estimate()$level[[1]]), " Risk)."))
     })
     output$riskAdvice <- renderUI({ tags$p(risk_estimate()$level[[3]]) })
+    }
   })
+  
 }
 
 shinyApp(ui = ui, server = server)
-```
-
