@@ -1,3 +1,15 @@
+---
+title: "Untitled"
+author: "Jack"
+date: "2024-12-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -63,14 +75,19 @@ ui <- fluidPage(
     tabPanel("Diabetes Risk Calculator",
              sidebarLayout(
                sidebarPanel(
-                 width = 6,
-                 h4("Calculate Your Diabetes Risk"),
-                 numericInput("input_age", "Age:", NULL, min = 1, max = 120),
-                 numericInput("input_pregnancies", "Number of Pregnancies:", NULL, min = 0),
-                 numericInput("input_BMI", "BMI (Calculate at https://www.calculator.net/bmi-calculator.html):", NULL, min = 0),
-                 numericInput("input_glucose", "Glucose Level (0-199 mg/dL):", NULL, min = 0, max = 199),
-                 actionButton("calc_risk", "Calculate Diabetes Risk")
-               ),
+                width = 6,
+                h4("Calculate Your Diabetes Risk"),
+                numericInput("input_age", "Age:", NULL, min = 1, max = 120),
+                numericInput("input_pregnancies", "Number of Pregnancies:", NULL, min = 0),
+                numericInput("input_BMI", "BMI (Calculate at https://www.calculator.net/bmi-calculator.html):", NULL, min = 0),
+                selectInput("input_glucose", "Glucose Level:", 
+                            choices = c("Very Low" = 60, 
+                                        "Low" = 85, 
+                                        "Normal" = 115, 
+                                        "High" = 150, 
+                                        "Extreme" = 200)),
+                actionButton("calc_risk", "Calculate Diabetes Risk")
+              ),
                mainPanel(
                  width = 6,
                  h4("Estimated Diabetes Risk:"),
@@ -124,9 +141,16 @@ server <- function(input, output) {
       labs(x = "Number of Pregnancies", y = "Density")
     apply_fill_scale(p) %>% ggplotly()
   })
-
+  
   risk_estimate <- reactive({
-    risk_percent <- round(predict(model, newdata = data.frame(Age = input$input_age, Pregnancies = input$input_pregnancies, BMI = input$input_BMI, Glucose = input$input_glucose), type = "response") * 100, 2)
+    # Map selected glucose category to the appropriate integer value
+    risk_percent <- round(predict(model, 
+                                  newdata = data.frame(
+                                    Age = input$input_age, 
+                                    Pregnancies = input$input_pregnancies, 
+                                    BMI = input$input_BMI, 
+                                    Glucose = as.numeric(input$input_glucose)), 
+                                  type = "response") * 100, 2)
     list(percent = risk_percent, level = get_risk_advice(risk_percent))
   })
   
@@ -140,3 +164,5 @@ server <- function(input, output) {
 }
 
 shinyApp(ui = ui, server = server)
+```
+
