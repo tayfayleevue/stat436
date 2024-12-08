@@ -1,0 +1,266 @@
+```{r}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(caret)
+library(reshape2)
+library(bslib) # For theming
+
+# Load Data
+diabetes_data <- read.csv("https://uwmadison.box.com/shared/static/k6ph975j7qifhhxbcebzw0zirsol39yv")
+diabetes_data <- diabetes_data %>%
+  filter(across(c(Glucose, BloodPressure, SkinThickness, Insulin, BMI, Age, DiabetesPedigreeFunction), ~ . != 0)) %>%
+  mutate(Outcome = factor(Outcome, levels = c(0, 1), labels = c("Non-Diabetic", "Diabetic")))
+
+model <- glm(Outcome ~ Age + Pregnancies + BMI + Glucose, data = diabetes_data, family = "binomial")
+
+# Functions
+apply_fill_scale <- function(plot) {
+  plot + 
+    scale_fill_manual(values = c("Non-Diabetic" = "skyblue", "Diabetic" = "salmon")) + 
+    theme_minimal() + 
+    theme(legend.position = "none", plot.title = element_text(size = 14, face = "bold"))
+}
+
+generate_box_plot <- function(feature, show_legend = FALSE) {
+  feature_label <- ifelse(feature == "DiabetesPedigreeFunction", "Family Risk Score", feature)
+  
+  p <- ggplot(diabetes_data, aes(x = Outcome, y = .data[[feature]], fill = Outcome)) +
+    geom_boxplot() + 
+    geom_jitter(width = 0.2, alpha = 0.5) +
+    labs(x = "Diabetes Status", y = feature_label) +
+    theme(legend.position = if (show_legend) "top" else "none")
+  apply_fill_scale(p) %>% ggplotly()
+}
+
+generate_hist_plot <- function(feature, show_legend = FALSE) {
+  feature_label <- ifelse(feature == "DiabetesPedigreeFunction", "Family Risk Score", feature)
+  
+  p <- ggplot(diabetes_data, aes_string(x = feature, fill = "Outcome")) +
+    geom_histogram(aes(y = ..density..), position = "identity", alpha = 0.5, bins = 30) +
+    geom_density(alpha = 0.6) +
+    labs(x = feature_label, y = "Density") +
+    theme(legend.position = if (show_legend) "top" else "none")
+  apply_fill_scale(p) %>% ggplotly()
+}
+
+generate_correlation_heatmap <- function(data) {
+  selected_data <- data %>% 
+    select(-c(Outcome, SkinThickness)) %>% 
+    rename("Blood Pressure" = BloodPressure, "Family Risk Score" = DiabetesPedigreeFunction)
+
+  corr_matrix <- cor(selected_data, use = "complete.obs") 
+  melted_corr_matrix <- melt(corr_matrix)
+  melted_corr_matrix$value <- round(melted_corr_matrix$value, 2)
+
+  p <- ggplot(data = melted_corr_matrix, aes(
+    x = Var1, y = Var2, fill = value, 
+    text = paste0("Correlation: ", value)
+  )) +
+    geom_tile(color = "white") +
+    scale_fill_gradient2(low = "skyblue", high = "salmon", mid = "white", midpoint = 0, name = "Correlation") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10),
+      plot.title = element_text(face = "bold", size = 16, hjust = 0.5) # Center the title
+    ) +
+    labs(title = "Correlation Heatmap of Features", x = "", y = "")
+
+  ggplotly(p, tooltip = "text")
+}
+
+get_risk_advice <- function(risk_percent) {
+  if (risk_percent < 25) {
+    list("Low", "green", "Your estimated risk is low. Maintain a balanced diet, regular exercise, and annual health check-ups to keep your risk low.")
+  } else if (risk_percent < 50) {
+    list("Moderate", "orange", "Your estimated risk is moderate. Monitor blood sugar levels, maintain a healthy weight, and engage in regular physical activity to help manage your risk.")
+  } else {
+    list("High", "red", "Your estimated risk is high. Consult a healthcare provider and consider lifestyle changes, such as a low-sugar diet and increased physical activity.")
+  }
+}
+
+# UI
+ui <- fluidPage(
+  theme = bs_theme(bootswatch = "lux"), # Apply Lux theme for a clean, modern look
+
+  navbarPage(
+    title = "Type 2 Diabetes Analysis",
+    id = "mainNavbar",
+    
+    tabPanel(
+      title = "Visualizations",
+      icon = icon("chart-bar"),
+      fluidRow(
+        column(12, h3("Explore Summary Insights"), align = "center"),
+        column(12, plotlyOutput("correlationHeatmap", height = "500px")),
+        column(
+          12,
+          HTML("<h4>Interpretation of the Correlation Heatmap</h4>
+                <p>The correlation heatmap visualizes the relationships between key health metrics in the dataset. 
+                The color of each cell represents the strength of the relationship between the two features.</p>
+                <h5>Correlation Levels:</h5>
+                <ul>
+                  <li><strong>High Correlations:</strong> Certain features, such as insulin and glucose, show strong positive correlations. 
+                  This may indicate that as one increases, the other tends to increase as well, reflecting the association between elevated glucose 
+                  levels and higher insulin concentration.</li>
+                  <li><strong>Moderate Correlations:</strong> Features such as blood pressure and BMI may show moderate correlations, 
+                  indicating some association but not as strong as those seen between glucose and insulin.</li>
+                  <li><strong>Weak or No Correlations:</strong> Some feature pairs show weak or no significant correlation such as BMI and pregnancies, 
+                  suggesting that variations in one do not strongly correspond to variations in the other.</li>
+                </ul>")
+        )
+      ),
+      fluidRow(
+        column(12, h4("Summary Statistics by Diabetes Status"), align = "center"),
+        column(12, tableOutput("summaryStatsTable"))
+      )
+    ),
+    
+    tabPanel(
+      title = "Compare Features",
+      icon = icon("columns"),
+      sidebarLayout(
+        sidebarPanel(
+          h4("Select Features to Compare"),
+          selectInput("feature1", "Feature 1:", 
+                      choices = c("BMI", "Glucose", "Blood Pressure" = "BloodPressure", "Age", "Insulin", "Pregnancies", "Family Risk Score" = "DiabetesPedigreeFunction")),
+          selectInput("feature2", "Feature 2:", 
+                      choices = c("BMI", "Glucose", "Blood Pressure" = "BloodPressure", "Age", "Insulin", "Pregnancies", "Family Risk Score" = "DiabetesPedigreeFunction")),
+          tags$p("Select two features to compare their distributions across diabetic and non-diabetic groups.")
+        ),
+        mainPanel(
+          div(
+            style = "text-align: center; margin-bottom: 15px;",
+            tags$span(style = "color: skyblue; font-weight: bold; font-size: 14px;", "Non-Diabetic"),
+            tags$span(" | "),
+            tags$span(style = "color: salmon; font-weight: bold; font-size: 14px;", "Diabetic")
+          ),
+          plotlyOutput("compareFeaturesPlots", height = "850px")
+        )
+      )
+    ),
+    
+    tabPanel(
+      title = "Diabetes Risk Calculator",
+      icon = icon("calculator"),
+      sidebarLayout(
+        sidebarPanel(
+          width = 6,
+          h4("Calculate Your Diabetes Risk"),
+          numericInput("input_age", "Age:", NULL, min = 1, max = 120),
+          numericInput("input_pregnancies", "Number of Pregnancies:", NULL, min = 0),
+          selectInput("input_unit_system", "Unit System:", 
+          choices = c("Metric (kg, m)" = "metric", "Imperial (lb, in)" = "imperial")),
+          numericInput("input_weight", "Weight:", NULL, min = 1),
+          numericInput("input_height", "Height:", NULL, min = 1),
+          selectInput("input_glucose", "Glucose Level (mg/dL):", 
+                      choices = c("Very Low (60)" = 60, 
+                                  "Low (85)" = 85, 
+                                  "Normal (115)" = 115, 
+                                  "High (150)" = 150, 
+                                  "Very High (200)" = 200)),
+          actionButton("calc_risk", "Calculate Diabetes Risk")
+        ),
+        mainPanel(
+          width = 6,
+          h4("Estimated Diabetes Risk:", align = "center", style = "font-size: 24px; font-weight: bold;"),
+          uiOutput("riskOutput"),
+          uiOutput("riskAdvice"),
+          tags$hr(),
+          h4("How is Diabetes Risk Calculated?"),
+          tags$p("This risk estimate is based on a logistic regression model trained on the Pima Indian Diabetes dataset."),
+          tags$ul(
+            tags$li("Logistic regression is used to model binary outcomes—in this case, the likelihood of diabetes."),
+            tags$li("Key factors include age, number of pregnancies, BMI, and glucose levels.")
+          ),
+          tags$p("The predicted risk percentage reflects the probability of diabetes based on patterns observed in the dataset."),
+          h5("Model Limitations"),
+          tags$p("The dataset focuses on Pima Indian women over 21 years old. Results may vary in different demographics. 
+                  For personalized advice, consult a healthcare professional.")
+        )
+      )
+    )
+  )
+)
+
+# Server
+server <- function(input, output) {
+  output$summaryStatsTable <- renderTable({
+    diabetes_data %>%
+      group_by(Outcome) %>%
+      summarize(
+        "BMI Mean" = mean(BMI, na.rm = TRUE),
+        "Glucose Mean" = mean(Glucose, na.rm = TRUE),
+        "Age Mean" = mean(Age, na.rm = TRUE),
+        "Pregnancies Mean" = mean(Pregnancies, na.rm = TRUE),
+        "Blood Pressure Mean" = mean(BloodPressure, na.rm = TRUE),
+        "Family Risk Score Mean" = mean(DiabetesPedigreeFunction, na.rm = TRUE)
+      )
+  })
+
+  output$correlationHeatmap <- renderPlotly({
+    generate_correlation_heatmap(diabetes_data)
+  })
+
+  output$compareFeaturesPlots <- renderPlotly({
+    boxPlot1 <- generate_box_plot(input$feature1, show_legend = FALSE) %>% layout(showlegend = FALSE)
+    boxPlot2 <- generate_box_plot(input$feature2, show_legend = FALSE) %>% layout(showlegend = FALSE)
+    histPlot1 <- generate_hist_plot(input$feature1, show_legend = FALSE) %>% layout(showlegend = FALSE)
+    histPlot2 <- generate_hist_plot(input$feature2, show_legend = FALSE) %>% layout(showlegend = FALSE)
+
+    subplot(
+      boxPlot1, boxPlot2, 
+      histPlot1, histPlot2, 
+      nrows = 2, 
+      shareX = FALSE, # Ensure X-axis is not shared
+      shareY = FALSE, # Ensure Y-axis is not shared
+      titleX = TRUE,  # Display X-axis titles
+      titleY = TRUE   # Display Y-axis titles
+    ) %>%
+      layout(
+        title = "Feature Comparison",
+        margin = list(t = 30),
+        showlegend = FALSE
+      )
+  })
+
+  calculate_bmi <- reactive({
+    if (input$input_unit_system == "metric") {
+      input$input_weight / (input$input_height^2)
+    } else if (input$input_unit_system == "imperial") {
+      (input$input_weight * 703) / (input$input_height^2)
+    } else {
+      NA  # Handle cases where input is incomplete
+    }
+  })
+  
+  risk_estimate <- reactive({
+    bmi_value <- calculate_bmi()
+    
+    risk_percent <- round(predict(model, 
+                                  newdata = data.frame(
+                                    Age = input$input_age, 
+                                    Pregnancies = input$input_pregnancies, 
+                                    BMI = bmi_value, 
+                                    Glucose = as.numeric(input$input_glucose)), 
+                                  type = "response") * 100, 2)
+    list(percent = risk_percent, level = get_risk_advice(risk_percent))
+  })
+  
+  observeEvent(input$calc_risk, {
+    if (is.na(input$input_age) || is.na(input$input_pregnancies) || is.na(input$input_height) || is.na(input$input_weight) || is.na(input$input_glucose)) {
+      output$riskOutput <- renderUI({ HTML("Some of the predictors are blank, please check your inputs.") })
+      output$riskAdvice <- renderUI(NULL)
+    } else {
+    output$riskOutput <- renderUI({
+      HTML(paste0("Your estimated risk of diabetes is ", risk_estimate()$percent, "% (",
+                  tags$span(style = paste0("color:", risk_estimate()$level[[2]]), risk_estimate()$level[[1]]), " Risk)."))
+    })
+    output$riskAdvice <- renderUI({ tags$p(risk_estimate()$level[[3]]) })
+    }
+  })
+}
+
+shinyApp(ui, server)
+```
