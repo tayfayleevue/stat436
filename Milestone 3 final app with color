@@ -99,33 +99,35 @@ ui <- fluidPage(
       direction = "bottom"
     ),
     tabPanel(
-      title = "Visualizations",
-      icon = icon("chart-bar"),
-      fluidRow(
-        column(12, h3("Explore Summary Insights"), align = "center"),
-        column(12, plotlyOutput("correlationHeatmap", height = "500px")),
-        column(
-          12,
-          HTML("<h4>Interpretation of the Correlation Heatmap</h4>
-                <p>The correlation heatmap visualizes the relationships between key health metrics in the dataset. 
-                The color of each cell represents the strength of the relationship between the two features.</p>
-                <h5>Correlation Levels:</h5>
-                <ul>
-                  <li><strong>High Correlations:</strong> Certain features, such as insulin and glucose, show strong positive correlations. 
-                  This may indicate that as one increases, the other tends to increase as well, reflecting the association between elevated glucose 
-                  levels and higher insulin concentration.</li>
-                  <li><strong>Moderate Correlations:</strong> Features such as blood pressure and BMI may show moderate correlations, 
-                  indicating some association but not as strong as those seen between glucose and insulin.</li>
-                  <li><strong>Weak or No Correlations:</strong> Some feature pairs show weak or no significant correlation such as BMI and pregnancies, 
-                  suggesting that variations in one do not strongly correspond to variations in the other.</li>
-                </ul>")
-        )
-      ),
-      fluidRow(
-        column(12, h4("Summary Statistics by Diabetes Status"), align = "center"),
-        column(12, tableOutput("summaryStatsTable"))
-      )
-    ),
+  title = "Summaries and Feature Correlations",
+  icon = icon("chart-bar"),
+  fluidRow(
+    column(12, h4("Summary Statistics by Diabetes Status"), align = "center"),
+    column(12, tableOutput("summaryStatsTable"))
+  ),
+  tags$hr(style = "border-top: 2px solid #dee2e6;"),  # Adds a horizontal line for separation
+  fluidRow(
+    column(12, h3("Explore Summary Insights"), align = "center"),
+    column(12, plotlyOutput("correlationHeatmap", height = "500px")),
+    column(
+      12,
+      HTML("<h4>Interpretation of the Correlation Heatmap</h4>
+            <p>The correlation heatmap visualizes the relationships between key health metrics in the dataset. 
+            The color of each cell represents the strength of the relationship between the two features.</p>
+            <h5>Correlation Levels:</h5>
+            <ul>
+              <li><strong>High Correlations:</strong> Certain features, such as insulin and glucose, show strong positive correlations. 
+              This may indicate that as one increases, the other tends to increase as well, reflecting the association between elevated glucose 
+              levels and higher insulin concentration.</li>
+              <li><strong>Moderate Correlations:</strong> Features such as blood pressure and BMI may show moderate correlations, 
+              indicating some association but not as strong as those seen between glucose and insulin.</li>
+              <li><strong>Weak or No Correlations:</strong> Some feature pairs show weak or no significant correlation such as BMI and pregnancies, 
+              suggesting that variations in one do not strongly correspond to variations in the other.</li>
+            </ul>")
+    )
+  )
+)
+,
     
     tabPanel(
       title = "Compare Features",
