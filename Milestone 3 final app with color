@@ -123,7 +123,8 @@ ui <- fluidPage(
               indicating some association but not as strong as those seen between glucose and insulin.</li>
               <li><strong>Weak or No Correlations:</strong> Some feature pairs show weak or no significant correlation such as BMI and pregnancies, 
               suggesting that variations in one do not strongly correspond to variations in the other.</li>
-            </ul>")
+            </ul>"),
+      style = "margin-top: 20px;"
     )
   )
 )
